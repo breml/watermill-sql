@@ -2,6 +2,7 @@ package sql
 
 import (
 	"fmt"
+	"strings"
 )
 
 // DefaultPostgreSQLOffsetsAdapter is adapter for storing offsets in PostgreSQL database.
@@ -18,28 +19,52 @@ type DefaultPostgreSQLOffsetsAdapter struct {
 	GenerateMessagesOffsetsTableName func(topic string) string
 }
 
-func (a DefaultPostgreSQLOffsetsAdapter) SchemaInitializingQueries(topic string) []string {
-	return []string{`
-		CREATE TABLE IF NOT EXISTS ` + a.MessagesOffsetsTable(topic) + ` (
-		consumer_group VARCHAR(255) NOT NULL,
-		offset_acked BIGINT,
-		offset_consumed BIGINT NOT NULL,
-		PRIMARY KEY(consumer_group)
-	)`}
+func (a DefaultPostgreSQLOffsetsAdapter) SchemaInitializingQueries(topic, consumerGroup string) []string {
+	if consumerGroup == "" {
+		consumerGroup = "__default__"
+	}
+
+	// aquireAdvisoryLock := `SELECT pg_advisory_lock(('x'||substr(md5('` + consumerGroup + `'),1,16))::bit(64)::bigint);
+	// `
+
+	createConsumerGroupOffsetsTable := `CREATE TABLE IF NOT EXISTS ` + a.MessagesOffsetsTable(topic+`_`+consumerGroup) + ` (
+		"offset" BIGINT NOT NULL PRIMARY KEY,
+		"acked_at" TIMESTAMP
+	);
+	`
+
+	addConsumerGroupToTopic := `INSERT INTO ` + strings.ReplaceAll(a.MessagesOffsetsTable(topic+`_consumer_groups`), `_offsets`, ``) + ` (consumer_group) values ('` + consumerGroup + `') ON CONFLICT DO NOTHING;
+	`
+
+	// releaseAdvisoryLock := `SELECT pg_advisory_unlock(('x'||substr(md5('` + consumerGroup + `'),1,16))::bit(64)::bigint);
+	// `
+
+	return []string{
+		// aquireAdvisoryLock,
+		createConsumerGroupOffsetsTable,
+		addConsumerGroupToTopic,
+		// releaseAdvisoryLock,
+	}
 }
 
 func (a DefaultPostgreSQLOffsetsAdapter) NextOffsetQuery(topic, consumerGroup string) (string, []interface{}) {
+	if consumerGroup == "" {
+		consumerGroup = "__default__"
+	}
 	return `SELECT COALESCE(
-				(SELECT offset_acked
-				 FROM ` + a.MessagesOffsetsTable(topic) + `
-				 WHERE consumer_group=$1 FOR UPDATE
+				(SELECT "offset"
+				 FROM ` + a.MessagesOffsetsTable(topic+`_`+consumerGroup) + `
+				 WHERE acked_at IS NULL ORDER BY "offset" ASC LIMIT 1 FOR UPDATE SKIP LOCKED
 				), 0)`,
-		[]interface{}{consumerGroup}
+		[]interface{}{}
 }
 
 func (a DefaultPostgreSQLOffsetsAdapter) AckMessageQuery(topic string, offset int, consumerGroup string) (string, []interface{}) {
-	ackQuery := `UPDATE ` + a.MessagesOffsetsTable(topic) + ` SET offset_acked = $1 WHERE consumer_group = $2`
-	return ackQuery, []interface{}{offset, consumerGroup}
+	if consumerGroup == "" {
+		consumerGroup = "__default__"
+	}
+	ackQuery := `UPDATE ` + a.MessagesOffsetsTable(topic+`_`+consumerGroup) + ` SET acked_at = now() WHERE "offset" = $1`
+	return ackQuery, []interface{}{offset}
 }
 
 func (a DefaultPostgreSQLOffsetsAdapter) MessagesOffsetsTable(topic string) string {

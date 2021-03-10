@@ -15,17 +15,58 @@ type DefaultPostgreSQLSchema struct {
 }
 
 func (s DefaultPostgreSQLSchema) SchemaInitializingQueries(topic string) []string {
-	createMessagesTable := strings.Join([]string{
-		`CREATE TABLE IF NOT EXISTS ` + s.MessagesTable(topic) + ` (`,
-		`"offset" SERIAL,`,
-		`"uuid" VARCHAR(36) NOT NULL,`,
-		`"created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,`,
-		`"payload" JSON DEFAULT NULL,`,
-		`"metadata" JSON DEFAULT NULL`,
-		`);`,
-	}, "\n")
+	// aquireAdvisoryLock := `SELECT pg_advisory_lock(('x'||substr(md5('` + topic + `'),1,16))::bit(64)::bigint);
+	// `
 
-	return []string{createMessagesTable}
+	createMessagesTable := `CREATE TABLE IF NOT EXISTS ` + s.MessagesTable(topic) + ` (
+		"offset" SERIAL PRIMARY KEY,
+		"uuid" VARCHAR(36) NOT NULL,
+		"created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		"payload" bytea DEFAULT NULL,
+		"metadata" JSON DEFAULT NULL
+	);
+	`
+
+	createConsumerGroupsTable := `CREATE TABLE IF NOT EXISTS ` + s.MessagesTable(topic+`_consumer_groups`) + ` (
+		"consumer_group" varchar(64) NOT NULL PRIMARY KEY
+	);
+	`
+
+	createConsumerGroupsUpdateFunction := `CREATE OR REPLACE FUNCTION ` + strings.ReplaceAll(strings.ReplaceAll(s.MessagesTable(topic+`_cg_update`), `"`, ``), "-", "") + `() RETURNS TRIGGER AS $$
+		DECLARE
+		query TEXT ;
+		consumergroup VARCHAR;
+		BEGIN
+			FOR consumergroup IN
+				SELECT consumer_group FROM ` + s.MessagesTable(topic+`_consumer_groups`) + `
+				LOOP
+					query := CONCAT('INSERT INTO ', FORMAT('%I', CONCAT('` + strings.ReplaceAll(s.MessagesTable(`offsets_`+topic+`_`), `"`, ``) + `', consumergroup)), ' ("offset") values (', new.offset, ')');
+					EXECUTE query;
+				END LOOP;
+			RETURN NULL;
+		END;
+	$$ language plpgsql;
+	`
+
+	dropCreateConsumerGroupUpdateTriggerIfExists := `DROP TRIGGER IF EXISTS ` + s.MessagesTable(topic+"_consumer_groups_trigger") + ` ON ` + s.MessagesTable(topic) + `;
+	`
+
+	createConsumerGroupUpdateTrigger := `CREATE TRIGGER ` + s.MessagesTable(topic+"_consumer_groups_trigger") + `
+		AFTER INSERT ON ` + s.MessagesTable(topic) + ` FOR EACH ROW EXECUTE PROCEDURE ` + strings.ReplaceAll(strings.ReplaceAll(s.MessagesTable(topic+`_cg_update`), `"`, ``), `-`, ``) + `();
+	`
+
+	// releaseAdvisoryLock := `SELECT pg_advisory_unlock(('x'||substr(md5('` + topic + `'),1,16))::bit(64)::bigint);
+	// `
+
+	return []string{
+		// aquireAdvisoryLock,
+		createMessagesTable,
+		createConsumerGroupsTable,
+		createConsumerGroupsUpdateFunction,
+		dropCreateConsumerGroupUpdateTriggerIfExists,
+		createConsumerGroupUpdateTrigger,
+		// releaseAdvisoryLock,
+	}
 }
 
 func (s DefaultPostgreSQLSchema) InsertQuery(topic string, msgs message.Messages) (string, []interface{}, error) {
@@ -60,7 +101,7 @@ func (s DefaultPostgreSQLSchema) SelectQuery(topic string, consumerGroup string,
 	selectQuery := `
 		SELECT "offset", uuid, payload, metadata FROM ` + s.MessagesTable(topic) + `
 		WHERE
-			"offset" > (` + nextOffsetQuery + `)
+			"offset" = (` + nextOffsetQuery + `)
 		ORDER BY
 			"offset" ASC
 		LIMIT 1`

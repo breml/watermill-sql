@@ -18,7 +18,7 @@ type DefaultMySQLOffsetsAdapter struct {
 	GenerateMessagesOffsetsTableName func(topic string) string
 }
 
-func (a DefaultMySQLOffsetsAdapter) SchemaInitializingQueries(topic string) []string {
+func (a DefaultMySQLOffsetsAdapter) SchemaInitializingQueries(topic, consumerGroup string) []string {
 	return []string{`
 		CREATE TABLE IF NOT EXISTS ` + a.MessagesOffsetsTable(topic) + ` (
 		consumer_group VARCHAR(255) NOT NULL,

@@ -13,9 +13,7 @@ import (
 	"github.com/ThreeDotsLabs/watermill/message"
 )
 
-var (
-	ErrSubscriberClosed = errors.New("subscriber is closed")
-)
+var ErrSubscriberClosed = errors.New("subscriber is closed")
 
 type SubscriberConfig struct {
 	ConsumerGroup string
@@ -260,23 +258,23 @@ func (s *Subscriber) query(
 	})
 	logger.Trace("Received message", nil)
 
-	consumedQuery, consumedArgs := s.config.OffsetsAdapter.ConsumedMessageQuery(
-		topic,
-		offset,
-		s.config.ConsumerGroup,
-		s.consumerIdBytes,
-	)
-	if consumedQuery != "" {
-		logger.Trace("Executing query to confirm message consumed", watermill.LogFields{
-			"query":      consumedQuery,
-			"query_args": sqlArgsToLog(consumedArgs),
-		})
+	// consumedQuery, consumedArgs := s.config.OffsetsAdapter.ConsumedMessageQuery(
+	// 	topic,
+	// 	offset,
+	// 	s.config.ConsumerGroup,
+	// 	s.consumerIdBytes,
+	// )
+	// if consumedQuery != "" {
+	// 	logger.Trace("Executing query to confirm message consumed", watermill.LogFields{
+	// 		"query":      consumedQuery,
+	// 		"query_args": sqlArgsToLog(consumedArgs),
+	// 	})
 
-		_, err := tx.ExecContext(ctx, consumedQuery, consumedArgs...)
-		if err != nil {
-			return msg.UUID, false, errors.Wrap(err, "cannot send consumed query")
-		}
-	}
+	// 	_, err := tx.ExecContext(ctx, consumedQuery, consumedArgs...)
+	// 	if err != nil {
+	// 		return msg.UUID, false, errors.Wrap(err, "cannot send consumed query")
+	// 	}
+	// }
 
 	acked := s.sendMessage(ctx, msg, out, logger)
 	if acked {
@@ -334,7 +332,7 @@ ResendLoop:
 			return true
 
 		case <-msg.Nacked():
-			//message nacked, try resending
+			// message nacked, try resending
 			logger.Debug("Message nacked, resending", nil)
 			msg = msg.Copy()
 
@@ -376,5 +374,6 @@ func (s *Subscriber) SubscribeInitialize(topic string) error {
 		s.db,
 		s.config.SchemaAdapter,
 		s.config.OffsetsAdapter,
+		s.config.ConsumerGroup,
 	)
 }

@@ -12,3 +12,5 @@ require (
 	github.com/stretchr/testify v1.5.1
 	google.golang.org/appengine v1.6.0 // indirect
 )
+
+replace github.com/ThreeDotsLabs/watermill v1.0.2 => ../watermill

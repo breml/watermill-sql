@@ -7,21 +7,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/stdlib"
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill-sql/pkg/sql"
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/ThreeDotsLabs/watermill/pubsub/tests"
+	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/stdlib"
 
 	driver "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	logger = watermill.NewStdLogger(true, true)
-)
+var logger = watermill.NewStdLogger(true, true)
 
 func newPubSub(t *testing.T, db *stdSQL.DB, consumerGroup string, schemaAdapter sql.SchemaAdapter, offsetsAdapter sql.OffsetsAdapter) (message.Publisher, message.Subscriber) {
 	publisher, err := sql.NewPublisher(
@@ -105,36 +103,41 @@ func newPgxPostgreSQL(t *testing.T) *stdSQL.DB {
 	return db
 }
 
-func createMySQLPubSubWithConsumerGroup(t *testing.T, consumerGroup string) (message.Publisher, message.Subscriber) {
-	schemaAdapter := &testMySQLSchema{
-		sql.DefaultMySQLSchema{
-			GenerateMessagesTableName: func(topic string) string {
-				return fmt.Sprintf("`test_%s`", topic)
-			},
-		},
-	}
+// func createMySQLPubSubWithConsumerGroup(t *testing.T, consumerGroup string) (message.Publisher, message.Subscriber) {
+// 	schemaAdapter := &testMySQLSchema{
+// 		sql.DefaultMySQLSchema{
+// 			GenerateMessagesTableName: func(topic string) string {
+// 				return fmt.Sprintf("`test_%s`", topic)
+// 			},
+// 		},
+// 	}
 
-	offsetsAdapter := sql.DefaultMySQLOffsetsAdapter{
-		GenerateMessagesOffsetsTableName: func(topic string) string {
-			return fmt.Sprintf("`test_offsets_%s`", topic)
-		},
-	}
+// 	offsetsAdapter := sql.DefaultMySQLOffsetsAdapter{
+// 		GenerateMessagesOffsetsTableName: func(topic string) string {
+// 			return fmt.Sprintf("`test_offsets_%s`", topic)
+// 		},
+// 	}
 
-	return newPubSub(t, newMySQL(t), consumerGroup, schemaAdapter, offsetsAdapter)
-}
+// 	return newPubSub(t, newMySQL(t), consumerGroup, schemaAdapter, offsetsAdapter)
+// }
 
-func createMySQLPubSub(t *testing.T) (message.Publisher, message.Subscriber) {
-	return createMySQLPubSubWithConsumerGroup(t, "test")
-}
+// func createMySQLPubSub(t *testing.T) (message.Publisher, message.Subscriber) {
+// 	return createMySQLPubSubWithConsumerGroup(t, "test")
+// }
 
 func createPostgreSQLPubSubWithConsumerGroup(t *testing.T, consumerGroup string) (message.Publisher, message.Subscriber) {
-	schemaAdapter := &testPostgreSQLSchema{
-		sql.DefaultPostgreSQLSchema{
-			GenerateMessagesTableName: func(topic string) string {
-				return fmt.Sprintf(`"test_%s"`, topic)
-			},
+	schemaAdapter := sql.DefaultPostgreSQLSchema{
+		GenerateMessagesTableName: func(topic string) string {
+			return fmt.Sprintf(`"test_%s"`, topic)
 		},
 	}
+	// schemaAdapter := &testPostgreSQLSchema{
+	// 	sql.DefaultPostgreSQLSchema{
+	// 		GenerateMessagesTableName: func(topic string) string {
+	// 			return fmt.Sprintf(`test_%s`, topic)
+	// 		},
+	// 	},
+	// }
 
 	offsetsAdapter := sql.DefaultPostgreSQLOffsetsAdapter{
 		GenerateMessagesOffsetsTableName: func(topic string) string {
@@ -146,13 +149,18 @@ func createPostgreSQLPubSubWithConsumerGroup(t *testing.T, consumerGroup string)
 }
 
 func createPgxPostgreSQLPubSubWithConsumerGroup(t *testing.T, consumerGroup string) (message.Publisher, message.Subscriber) {
-	schemaAdapter := &testPostgreSQLSchema{
-		sql.DefaultPostgreSQLSchema{
-			GenerateMessagesTableName: func(topic string) string {
-				return fmt.Sprintf(`"test_%s"`, topic)
-			},
+	schemaAdapter := sql.DefaultPostgreSQLSchema{
+		GenerateMessagesTableName: func(topic string) string {
+			return fmt.Sprintf(`"test_%s"`, topic)
 		},
 	}
+	// schemaAdapter := &testPostgreSQLSchema{
+	// 	sql.DefaultPostgreSQLSchema{
+	// 		GenerateMessagesTableName: func(topic string) string {
+	// 			return fmt.Sprintf(`test_%s`, topic)
+	// 		},
+	// 	},
+	// }
 
 	offsetsAdapter := sql.DefaultPostgreSQLOffsetsAdapter{
 		GenerateMessagesOffsetsTableName: func(topic string) string {
@@ -171,21 +179,21 @@ func createPgxPostgreSQLPubSub(t *testing.T) (message.Publisher, message.Subscri
 	return createPgxPostgreSQLPubSubWithConsumerGroup(t, "test")
 }
 
-func TestMySQLPublishSubscribe(t *testing.T) {
-	features := tests.Features{
-		ConsumerGroups:      true,
-		ExactlyOnceDelivery: true,
-		GuaranteedOrder:     true,
-		Persistent:          true,
-	}
+// func TestMySQLPublishSubscribe(t *testing.T) {
+// 	features := tests.Features{
+// 		ConsumerGroups:      true,
+// 		ExactlyOnceDelivery: true,
+// 		GuaranteedOrder:     true,
+// 		Persistent:          true,
+// 	}
 
-	tests.TestPubSub(
-		t,
-		features,
-		createMySQLPubSub,
-		createMySQLPubSubWithConsumerGroup,
-	)
-}
+// 	tests.TestPubSub(
+// 		t,
+// 		features,
+// 		createMySQLPubSub,
+// 		createMySQLPubSubWithConsumerGroup,
+// 	)
+// }
 
 func TestPostgreSQLPublishSubscribe(t *testing.T) {
 	features := tests.Features{
@@ -203,18 +211,18 @@ func TestPostgreSQLPublishSubscribe(t *testing.T) {
 	)
 }
 
-func TestPgxPostgreSQLPublishSubscribe(t *testing.T) {
-	features := tests.Features{
-		ConsumerGroups:      true,
-		ExactlyOnceDelivery: true,
-		GuaranteedOrder:     true,
-		Persistent:          true,
-	}
+// func TestPgxPostgreSQLPublishSubscribe(t *testing.T) {
+// 	features := tests.Features{
+// 		ConsumerGroups:      true,
+// 		ExactlyOnceDelivery: true,
+// 		GuaranteedOrder:     true,
+// 		Persistent:          true,
+// 	}
 
-	tests.TestPubSub(
-		t,
-		features,
-		createPgxPostgreSQLPubSub,
-		createPgxPostgreSQLPubSubWithConsumerGroup,
-	)
-}
+// 	tests.TestPubSub(
+// 		t,
+// 		features,
+// 		createPgxPostgreSQLPubSub,
+// 		createPgxPostgreSQLPubSubWithConsumerGroup,
+// 	)
+// }

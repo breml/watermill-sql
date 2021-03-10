@@ -15,5 +15,5 @@ type OffsetsAdapter interface {
 
 	// SchemaInitializingQueries returns SQL queries which will make sure (CREATE IF NOT EXISTS)
 	// that the appropriate tables exist to write messages to the given topic.
-	SchemaInitializingQueries(topic string) []string
+	SchemaInitializingQueries(topic, consumerGroup string) []string
 }

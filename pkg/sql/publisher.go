@@ -10,9 +10,7 @@ import (
 	"github.com/ThreeDotsLabs/watermill/message"
 )
 
-var (
-	ErrPublisherClosed = errors.New("publisher is closed")
-)
+var ErrPublisherClosed = errors.New("publisher is closed")
 
 type PublisherConfig struct {
 	// SchemaAdapter provides the schema-dependent queries and arguments for them, based on topic/message etc.
@@ -137,6 +135,7 @@ func (p *Publisher) initializeSchema(topic string) error {
 		p.db,
 		p.config.SchemaAdapter,
 		nil,
+		"",
 	); err != nil {
 		return errors.Wrap(err, "cannot initialize schema")
 	}
